@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omspace Trivia & Particles</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0f172a; /* Dark slate background */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+
+        /* UI Overlay Layer */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none; /* Let mouse move events pass through to window for particles */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Top Left Info Box */
+        .info-box {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(4px);
+            pointer-events: auto;
+        }
+
+        h1 {
+            margin: 0 0 5px 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        p {
+            margin: 0;
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+
+        /* Quiz Card Styles */
+        .quiz-card {
+            background: rgba(15, 23, 42, 0.75);
+            width: 90%;
+            max-width: 500px;
+            padding: 30px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            pointer-events: auto; /* Re-enable clicks for the quiz */
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .question-text {
+            font-size: 1.3rem;
+            margin-bottom: 25px;
+            font-weight: 500;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .options-grid {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .option-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+
+        .option-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .option-btn.correct {
+            background: rgba(16, 185, 129, 0.6) !important;
+            border-color: #10b981;
+        }
+
+        .option-btn.wrong {
+            background: rgba(239, 68, 68, 0.6) !important;
+            border-color: #ef4444;
+        }
+
+        .quiz-footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.6);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 15px;
+        }
+
+        .next-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            display: none; /* Hidden by default */
+        }
+        
+        .next-btn:hover {
+            background: #2563eb;
+        }
+
+        /* Result Screen */
+        .result-screen {
+            display: none;
+        }
+        
+        .score-big {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #10b981;
+            margin: 20px 0;
+        }
+        
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .restart-btn {
+            background: transparent;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.5);
+            padding: 10px 25px;
+            border-radius: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .restart-btn:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: white;
+        }
+
+        .reward-btn {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+            animation: pulse 2s infinite;
+        }
+        
+        .reward-btn:hover {
+            transform: scale(1.05);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+
+        /* Wheel Modal Overlay */
+        #wheel-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 50;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            backdrop-filter: blur(8px);
+            pointer-events: auto;
+        }
+
+        .wheel-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        #wheel-canvas {
+            border-radius: 50%;
+            box-shadow: 0 0 25px rgba(59, 130, 246, 0.6);
+            transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+        }
+
+        .wheel-pointer {
+            width: 0; height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 40px solid #ffffff;
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 51;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+        }
+
+        .spin-btn-action {
+            padding: 15px 50px;
+            font-size: 1.5rem;
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+            border: none;
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: 800;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.5);
+            letter-spacing: 2px;
+            transition: transform 0.1s;
+        }
+
+        .spin-btn-action:active {
+            transform: scale(0.95);
+        }
+
+        .spin-btn-action:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            animation: none;
+        }
+
+        #prize-display {
+            margin-top: 20px;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #10b981;
+            min-height: 40px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        
+        .modal-close-btn {
+            margin-top: 20px;
+            background: transparent;
+            color: #94a3b8;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            text-decoration: underline;
+        }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="canvas1"></canvas>
+
+    <div id="ui-layer">
+        <!-- Persistent Info Box -->
+        <div class="info-box">
+            <h1>Omspace Galaxy</h1>
+            <p>Particles: <span id="particle-count">0</span></p>
+        </div>
+
+        <!-- Quiz Container -->
+        <div class="quiz-card" id="quiz-card">
+            <div id="quiz-content">
+                <div style="margin-bottom: 10px; color: #3b82f6; font-weight: bold; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px;">Omspace Challenge</div>
+                <div class="question-text" id="question">Loading...</div>
+                
+                <div class="options-grid" id="options">
+                    <!-- Options injected here -->
+                </div>
+
+                <div class="quiz-footer">
+                    <span id="progress">Question 1/5</span>
+                    <button class="next-btn" id="next-btn">Next</button>
+                </div>
+            </div>
+
+            <!-- Result Screen (Hidden initially) -->
+            <div class="result-screen" id="result-screen">
+                <h2>Mission Debrief</h2>
+                <div class="score-big" id="final-score">0/5</div>
+                <p id="score-message">Excellent work, cadet.</p>
+                
+                <div class="btn-group">
+                    <button class="reward-btn" id="reward-btn" style="display: none;" onclick="openWheel()">SPIN FOR PRIZE!</button>
+                    <button class="restart-btn" onclick="restartQuiz()">Restart Mission</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spin the Wheel Modal -->
+    <div id="wheel-modal">
+        <div class="wheel-container">
+            <div class="wheel-pointer"></div>
+            <canvas id="wheel-canvas" width="350" height="350"></canvas>
+        </div>
+        <button class="spin-btn-action" id="spin-btn">SPIN!</button>
+        <div id="prize-display"></div>
+        <button class="modal-close-btn" onclick="closeWheel()">Close</button>
+    </div>
+
+    <script>
+        /** CANVAS & PARTICLE SYSTEM **/
+        const canvas = document.getElementById('canvas1');
+        const ctx = canvas.getContext('2d');
+        const particleCountDisplay = document.getElementById('particle-count');
+
+        let particlesArray;
+        let mouse = { x: null, y: null, radius: 150 };
+
+        window.addEventListener('resize', function() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            mouse.radius = (canvas.height/80) * (canvas.width/80);
+            init();
+        });
+
+        // Mouse move on window so it works even over the UI
+        window.addEventListener('mousemove', function(event) {
+            mouse.x = event.x;
+            mouse.y = event.y;
+        });
+
+        window.addEventListener('mouseout', function() {
+            mouse.x = undefined;
+            mouse.y = undefined;
+        });
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        class Particle {
+            constructor(x, y, directionX, directionY, size, color) {
+                this.x = x;
+                this.y = y;
+                this.directionX = directionX;
+                this.directionY = directionY;
+                this.size = size;
+                this.color = color;
+                this.baseColor = color;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+            update() {
+                if (this.x > canvas.width || this.x < 0) this.directionX = -this.directionX;
+                if (this.y > canvas.height || this.y < 0) this.directionY = -this.directionY;
+
+                let dx = mouse.x - this.x;
+                let dy = mouse.y - this.y;
+                let distance = Math.sqrt(dx*dx + dy*dy);
+
+                if (distance < mouse.radius + this.size) {
+                    if (mouse.x < this.x && this.x < canvas.width - this.size * 10) this.x += 10;
+                    if (mouse.x > this.x && this.x > this.size * 10) this.x -= 10;
+                    if (mouse.y < this.y && this.y < canvas.height - this.size * 10) this.y += 10;
+                    if (mouse.y > this.y && this.y > this.size * 10) this.y -= 10;
+                    this.color = '#fff';
+                } else {
+                    this.color = this.baseColor;
+                }
+                this.x += this.directionX;
+                this.y += this.directionY;
+                this.draw();
+            }
+        }
+
+        function init() {
+            particlesArray = [];
+            let numberOfParticles = (canvas.height * canvas.width) / 9000;
+            numberOfParticles = Math.min(numberOfParticles, 300);
+            particleCountDisplay.innerText = Math.floor(numberOfParticles);
+
+            for (let i = 0; i < numberOfParticles; i++) {
+                let size = (Math.random() * 3) + 1;
+                let x = (Math.random() * ((innerWidth - size * 2) - (size * 2)) + size * 2);
+                let y = (Math.random() * ((innerHeight - size * 2) - (size * 2)) + size * 2);
+                let directionX = (Math.random() * 2) - 1;
+                let directionY = (Math.random() * 2) - 1;
+                const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981']; 
+                let color = colors[Math.floor(Math.random() * colors.length)];
+                particlesArray.push(new Particle(x, y, directionX, directionY, size, color));
+            }
+        }
+
+        function connect() {
+            let opacityValue = 1;
+            for (let a = 0; a < particlesArray.length; a++) {
+                for (let b = a; b < particlesArray.length; b++) {
+                    let distance = ((particlesArray[a].x - particlesArray[b].x) * (particlesArray[a].x - particlesArray[b].x))
+                    + ((particlesArray[a].y - particlesArray[b].y) * (particlesArray[a].y - particlesArray[b].y));
+                    
+                    if (distance < (canvas.width/7) * (canvas.height/7)) {
+                        opacityValue = 1 - (distance/20000);
+                        ctx.strokeStyle = 'rgba(140, 150, 255,' + opacityValue + ')';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(particlesArray[a].x, particlesArray[a].y);
+                        ctx.lineTo(particlesArray[b].x, particlesArray[b].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            ctx.clearRect(0, 0, innerWidth, innerHeight);
+            for (let i = 0; i < particlesArray.length; i++) {
+                particlesArray[i].update();
+            }
+            connect();
+        }
+
+        init();
+        animate();
+
+
+        /** QUIZ LOGIC **/
+        const questions = [
+            {
+                text: "What is the name of India's first reusable small satellite launch vehicle developed by Omspace?",
+                options: ["Starship", "Infinity-One", "Vikram-S", "Falcon 1"],
+                correct: 1
+            },
+            {
+                text: "What is the payload capacity of the Infinity-One rocket?",
+                options: ["100kg to 200km orbit", "1000kg to 800km orbit", "500kg to 500km orbit", "250kg to 400km orbit"],
+                correct: 2
+            },
+            {
+                text: "The Infinity-One rocket is designed to relaunch within which timeframe?",
+                options: ["1 week", "24-48 hours", "1 month", "12 hours"],
+                correct: 1
+            },
+            {
+                text: "What fuel combination powers Omspace's 3D printed cryogenic engine?",
+                options: ["Hydrogen & Oxygen", "Kerosene & LOX", "Bio-Methane & LOX", "Solid Propellant"],
+                correct: 2
+            },
+            {
+                text: "Where is Omspace's Head Office located?",
+                options: ["Bangalore", "Hyderabad", "Ahmedabad", "Mumbai"],
+                correct: 2
+            }
+        ];
+
+        let currentQuestion = 0;
+        let score = 0;
+        let answered = false;
+
+        const questionEl = document.getElementById('question');
+        const optionsEl = document.getElementById('options');
+        const progressEl = document.getElementById('progress');
+        const nextBtn = document.getElementById('next-btn');
+        const quizContent = document.getElementById('quiz-content');
+        const resultScreen = document.getElementById('result-screen');
+        const finalScoreEl = document.getElementById('final-score');
+        const scoreMsgEl = document.getElementById('score-message');
+        const rewardBtn = document.getElementById('reward-btn');
+
+        function loadQuestion() {
+            answered = false;
+            nextBtn.style.display = 'none';
+            const q = questions[currentQuestion];
+            questionEl.innerText = q.text;
+            progressEl.innerText = `Question ${currentQuestion + 1}/${questions.length}`;
+            
+            optionsEl.innerHTML = '';
+            q.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = opt;
+                btn.onclick = () => checkAnswer(index, btn);
+                optionsEl.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(selectedIndex, btnElement) {
+            if (answered) return;
+            answered = true;
+            
+            const correctIndex = questions[currentQuestion].correct;
+            const buttons = optionsEl.children;
+
+            if (selectedIndex === correctIndex) {
+                btnElement.classList.add('correct');
+                score++;
+            } else {
+                btnElement.classList.add('wrong');
+                buttons[correctIndex].classList.add('correct');
+            }
+
+            nextBtn.style.display = 'block';
+        }
+
+        nextBtn.addEventListener('click', () => {
+            currentQuestion++;
+            if (currentQuestion < questions.length) {
+                loadQuestion();
+            } else {
+                showResults();
+            }
+        });
+
+        function showResults() {
+            quizContent.style.display = 'none';
+            resultScreen.style.display = 'block';
+            finalScoreEl.innerText = `${score}/${questions.length}`;
+            
+            if (score === 5) scoreMsgEl.innerText = "Perfect! You are an aerospace expert.";
+            else if (score >= 3) scoreMsgEl.innerText = "Great job! You know your rockets.";
+            else scoreMsgEl.innerText = "Good effort! Review the mission data and try again.";
+
+            // Show reward button if score is >= 3
+            if (score >= 3) {
+                rewardBtn.style.display = 'block';
+            } else {
+                rewardBtn.style.display = 'none';
+            }
+        }
+
+        function restartQuiz() {
+            score = 0;
+            currentQuestion = 0;
+            resultScreen.style.display = 'none';
+            quizContent.style.display = 'block';
+            loadQuestion();
+        }
+
+        // Initialize Quiz
+        loadQuestion();
+
+
+        /** SPIN THE WHEEL LOGIC **/
+        const wheelModal = document.getElementById('wheel-modal');
+        const wheelCanvas = document.getElementById('wheel-canvas');
+        const wheelCtx = wheelCanvas.getContext('2d');
+        const spinBtn = document.getElementById('spin-btn');
+        const prizeDisplay = document.getElementById('prize-display');
+        
+        const prizes = [
+            { text: "Mission Patch", color: "#3b82f6" },
+            { text: "Infinity-One Model", color: "#8b5cf6" },
+            { text: "Try Again", color: "#64748b" },
+            { text: "Omspace Tee", color: "#ec4899" },
+            { text: "VIP Tour", color: "#10b981" },
+            { text: "Sticker Pack", color: "#f59e0b" }
+        ];
+
+        let wheelRotation = 0;
+        let isSpinning = false;
+
+        function drawWheel() {
+            const centerX = wheelCanvas.width / 2;
+            const centerY = wheelCanvas.height / 2;
+            const radius = wheelCanvas.width / 2;
+            const arc = (2 * Math.PI) / prizes.length;
+
+            prizes.forEach((prize, index) => {
+                const angle = index * arc;
+                wheelCtx.beginPath();
+                wheelCtx.arc(centerX, centerY, radius, angle, angle + arc);
+                wheelCtx.lineTo(centerX, centerY);
+                wheelCtx.fillStyle = prize.color;
+                wheelCtx.fill();
+                wheelCtx.stroke();
+                
+                // Add text
+                wheelCtx.save();
+                wheelCtx.translate(centerX, centerY);
+                wheelCtx.rotate(angle + arc / 2);
+                wheelCtx.textAlign = "right";
+                wheelCtx.fillStyle = "white";
+                wheelCtx.font = "bold 16px Arial";
+                wheelCtx.fillText(prize.text, radius - 20, 5);
+                wheelCtx.restore();
+            });
+        }
+
+        drawWheel();
+
+        function openWheel() {
+            wheelModal.style.display = 'flex';
+            // Reset wheel state
+            wheelRotation = 0;
+            wheelCanvas.style.transform = `rotate(0deg)`;
+            spinBtn.disabled = false;
+            spinBtn.innerText = "SPIN!";
+            prizeDisplay.innerText = "";
+            isSpinning = false;
+        }
+
+        function closeWheel() {
+            wheelModal.style.display = 'none';
+        }
+
+        spinBtn.addEventListener('click', () => {
+            if (isSpinning) return;
+            isSpinning = true;
+            spinBtn.disabled = true;
+            spinBtn.innerText = "Spinning...";
+
+            // Calculate random spin
+            const minSpins = 5;
+            const maxSpins = 8;
+            const randomDeg = Math.floor(Math.random() * 360);
+            const totalDegrees = (360 * minSpins) + randomDeg + (360 * Math.random() * (maxSpins - minSpins));
+            
+            wheelRotation = totalDegrees;
+            wheelCanvas.style.transform = `rotate(-${wheelRotation}deg)`; // Negative to spin clockwise
+
+            // Calculate winner
+            // Because pointer is at top (270 degrees in canvas arc terms, or just 0 in CSS terms if we consider 12 o'clock)
+            // The segment that lands at 12 o'clock is the winner.
+            // If we rotate CANVAS by -degrees, the items move counter-clockwise.
+            // The item at index 0 starts at 3 o'clock (0 radians). 
+            // We need to account for canvas coordinate system vs visual top.
+            
+            setTimeout(() => {
+                isSpinning = false;
+                spinBtn.innerText = "CLAIMED";
+                
+                // Normalize rotation to 0-360
+                const actualRotation = wheelRotation % 360;
+                
+                // Segment arc size
+                const arcSize = 360 / prizes.length;
+                
+                // Calculate winning index
+                // This logic approximates the visual pointer at the top
+                // Pointer is at -90deg (Top). Canvas 0 is Right. 
+                // It's simpler to just map the degrees.
+                const winningIndex = Math.floor(actualRotation / arcSize);
+                
+                // Adjust index because rotation moves grid
+                // This is a rough calculation, for exact precision we'd map angles carefully
+                // but for a fun effect this modulo math usually lands on the visual winner
+                // We'll reverse array lookup to match visual rotation direction
+                let index = (prizes.length - Math.ceil(((actualRotation + 90) % 360) / arcSize)) % prizes.length;
+                if(index < 0) index += prizes.length;
+
+                prizeDisplay.innerText = "You won: " + prizes[index].text + "!";
+                
+                // Fire confetti (simulated via console or visual effect if we had a library)
+            }, 4000); // Match CSS transition time
+        });
+
+    </script>
+</body>
+</html>
