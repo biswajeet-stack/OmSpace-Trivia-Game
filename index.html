@@ -221,28 +221,44 @@
             pointer-events: auto;
         }
 
+        /* Wheel Container for perfect alignment */
         .wheel-container {
             position: relative;
-            margin-bottom: 20px;
+            width: 350px;
+            height: 350px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         #wheel-canvas {
             border-radius: 50%;
-            box-shadow: 0 0 25px rgba(59, 130, 246, 0.6);
-            transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.4);
+            transition: transform 4s cubic-bezier(0.15, 0.8, 0.12, 0.99); /* Improved easing */
         }
 
+        /* Sharp triangular pointer */
         .wheel-pointer {
-            width: 0; height: 0;
-            border-left: 20px solid transparent;
-            border-right: 20px solid transparent;
-            border-top: 40px solid #ffffff;
+            width: 40px;
+            height: 40px;
+            background: white;
             position: absolute;
-            top: -10px;
+            top: -15px; /* Overlap slightly */
             left: 50%;
-            transform: translateX(-50%);
+            transform: translateX(-50%) rotate(45deg); /* Rotate square to make diamond */
             z-index: 51;
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            border-radius: 4px 0 4px 0; /* Soften back corners */
+        }
+        
+        /* Make it look more like a pointer by clipping */
+        .wheel-pointer::after {
+            content: '';
+            position: absolute;
+            width: 100%; height: 100%;
+            background: white;
+            z-index: 52;
         }
 
         .spin-btn-action {
@@ -267,15 +283,19 @@
             opacity: 0.5;
             cursor: not-allowed;
             animation: none;
+            background: #475569;
+            box-shadow: none;
         }
 
         #prize-display {
-            margin-top: 20px;
+            margin-top: 25px;
             font-size: 2rem;
             font-weight: bold;
             color: #10b981;
             min-height: 40px;
             text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            text-align: center;
+            width: 100%;
         }
         
         .modal-close-btn {
@@ -606,25 +626,47 @@
             const radius = wheelCanvas.width / 2;
             const arc = (2 * Math.PI) / prizes.length;
 
+            // Start drawing from -90deg (top) so Slice 0 is at 12 o'clock
+            const startOffset = -Math.PI / 2;
+
             prizes.forEach((prize, index) => {
-                const angle = index * arc;
+                const angle = index * arc + startOffset;
+                
+                // Draw Wedge
                 wheelCtx.beginPath();
+                wheelCtx.moveTo(centerX, centerY);
                 wheelCtx.arc(centerX, centerY, radius, angle, angle + arc);
-                wheelCtx.lineTo(centerX, centerY);
                 wheelCtx.fillStyle = prize.color;
                 wheelCtx.fill();
                 wheelCtx.stroke();
                 
-                // Add text
+                // Draw Text
                 wheelCtx.save();
                 wheelCtx.translate(centerX, centerY);
+                // Rotate to center of wedge
                 wheelCtx.rotate(angle + arc / 2);
                 wheelCtx.textAlign = "right";
                 wheelCtx.fillStyle = "white";
                 wheelCtx.font = "bold 16px Arial";
-                wheelCtx.fillText(prize.text, radius - 20, 5);
+                // Position text inside the wedge, comfortably away from edge
+                wheelCtx.fillText(prize.text, radius - 30, 5);
                 wheelCtx.restore();
             });
+
+            // Draw Central Hub Cap
+            wheelCtx.beginPath();
+            wheelCtx.arc(centerX, centerY, 30, 0, Math.PI * 2);
+            wheelCtx.fillStyle = "white";
+            wheelCtx.fill();
+            wheelCtx.lineWidth = 4;
+            wheelCtx.strokeStyle = "#e2e8f0";
+            wheelCtx.stroke();
+            
+            // Draw small center point
+            wheelCtx.beginPath();
+            wheelCtx.arc(centerX, centerY, 8, 0, Math.PI * 2);
+            wheelCtx.fillStyle = "#3b82f6";
+            wheelCtx.fill();
         }
 
         drawWheel();
@@ -650,48 +692,36 @@
             spinBtn.disabled = true;
             spinBtn.innerText = "Spinning...";
 
-            // Calculate random spin
+            // Calculate random spin (Clockwise)
             const minSpins = 5;
             const maxSpins = 8;
             const randomDeg = Math.floor(Math.random() * 360);
-            const totalDegrees = (360 * minSpins) + randomDeg + (360 * Math.random() * (maxSpins - minSpins));
+            const totalDegrees = (360 * minSpins) + randomDeg;
             
             wheelRotation = totalDegrees;
-            wheelCanvas.style.transform = `rotate(-${wheelRotation}deg)`; // Negative to spin clockwise
+            // Apply Clockwise rotation in CSS
+            wheelCanvas.style.transform = `rotate(${wheelRotation}deg)`;
 
-            // Calculate winner
-            // Because pointer is at top (270 degrees in canvas arc terms, or just 0 in CSS terms if we consider 12 o'clock)
-            // The segment that lands at 12 o'clock is the winner.
-            // If we rotate CANVAS by -degrees, the items move counter-clockwise.
-            // The item at index 0 starts at 3 o'clock (0 radians). 
-            // We need to account for canvas coordinate system vs visual top.
-            
             setTimeout(() => {
                 isSpinning = false;
                 spinBtn.innerText = "CLAIMED";
                 
                 // Normalize rotation to 0-360
                 const actualRotation = wheelRotation % 360;
+                const arcSizeDegrees = 360 / prizes.length;
                 
-                // Segment arc size
-                const arcSize = 360 / prizes.length;
+                // Calculate Winner:
+                // Pointer is fixed at TOP (0 deg visual, or -90 deg math).
+                // Wheel rotated Clockwise by 'actualRotation'.
+                // Effectively, the pointer moved Counter-Clockwise relative to the wheel by 'actualRotation'.
+                // Since our slices start at 0 (Top) and go Clockwise (Index 1 is at 30 deg, etc.)
+                // The pointer is now pointing at "360 - actualRotation".
                 
-                // Calculate winning index
-                // This logic approximates the visual pointer at the top
-                // Pointer is at -90deg (Top). Canvas 0 is Right. 
-                // It's simpler to just map the degrees.
-                const winningIndex = Math.floor(actualRotation / arcSize);
-                
-                // Adjust index because rotation moves grid
-                // This is a rough calculation, for exact precision we'd map angles carefully
-                // but for a fun effect this modulo math usually lands on the visual winner
-                // We'll reverse array lookup to match visual rotation direction
-                let index = (prizes.length - Math.ceil(((actualRotation + 90) % 360) / arcSize)) % prizes.length;
-                if(index < 0) index += prizes.length;
+                const virtualPointerAngle = (360 - actualRotation) % 360;
+                const winningIndex = Math.floor(virtualPointerAngle / arcSizeDegrees);
 
-                prizeDisplay.innerText = "You won: " + prizes[index].text + "!";
+                prizeDisplay.innerText = "You won: " + prizes[winningIndex].text + "!";
                 
-                // Fire confetti (simulated via console or visual effect if we had a library)
             }, 4000); // Match CSS transition time
         });
 
