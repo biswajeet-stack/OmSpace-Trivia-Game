@@ -395,7 +395,7 @@
                 <button class="icon-btn" onclick="showQRCode()" title="Share QR Code">
                     <span>📱</span> QR
                 </button>
-                <button class="icon-btn" onclick="exportToCSV()" title="Download Excel/CSV">
+                <button class="icon-btn" onclick="exportToCSV()" title="Download All Data">
                     <span>⬇️</span> Data
                 </button>
             </div>
@@ -477,7 +477,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        /** FIREBASE SETUP (Safe Mode) **/
+        /** FIREBASE SETUP **/
         let app, auth, db, appId, currentUser = null;
         let isOffline = false;
 
@@ -536,7 +536,8 @@
             regBtn.innerText = "Registering...";
             regBtn.disabled = true;
 
-            // Save to Firestore Public Data (Shared Sheet Concept)
+            // Save to Firestore Public Data (Shared Cloud List)
+            // This is crucial for multi-user support
             if (!isOffline && currentUser && db) {
                 try {
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), {
@@ -545,15 +546,15 @@
                         uid: currentUser.uid,
                         timestamp: serverTimestamp()
                     });
-                    console.log("Participant Registered in Public List:", { name, email });
+                    console.log("Participant Registered in Cloud:", { name, email });
                 } catch (e) {
                     console.error("Error saving registration:", e);
                 }
             } else {
-                console.log("Offline/Demo Mode: Registration simulated for", name);
+                console.log("Offline Mode: Data not saved to cloud.");
             }
 
-            // Transition UI (Always happens even if offline)
+            // Transition UI
             setTimeout(() => {
                 regCard.style.display = 'none';
                 quizCard.style.display = 'block';
@@ -572,17 +573,22 @@
             qrModal.style.display = 'flex';
         };
 
-        // CSV EXPORT LOGIC (Data Store in Sheet)
+        // CSV EXPORT LOGIC (Download Cloud Data)
         window.exportToCSV = async function() {
-            if(!confirm("Download participant data as CSV?")) return;
+            // New Password Logic
+            const password = prompt("Enter Admin Password to Download Data:");
+            if (password !== "Omspace@2025") {
+                alert("Access Denied: Incorrect Password.");
+                return;
+            }
             
             if (isOffline || !db) {
-                alert("Offline Mode: No live data to download.");
+                alert("Offline Mode: Cannot fetch cloud data.");
                 return;
             }
 
             try {
-                // Fetch public registrations
+                // Fetch public registrations from the cloud
                 const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'));
                 
                 let csvContent = "data:text/csv;charset=utf-8,";
@@ -591,7 +597,7 @@
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
                     const date = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : "N/A";
-                    // Escape commas in names/emails to prevent CSV breakage
+                    // Escape commas
                     const safeName = `"${(data.name || "").replace(/"/g, '""')}"`;
                     const safeEmail = `"${(data.email || "").replace(/"/g, '""')}"`;
                     
@@ -602,13 +608,13 @@
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
-                link.setAttribute("download", "omspace_participants.csv");
+                link.setAttribute("download", "omspace_participants_cloud.csv");
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
 
             } catch (e) {
-                alert("Error downloading data. Ensure you have permissions or data exists.");
+                alert("Error downloading data. Check internet connection.");
                 console.error(e);
             }
         };
@@ -738,7 +744,6 @@
             connect();
         }
 
-        // Start Particles Immediately
         init();
         animate();
 
@@ -847,7 +852,6 @@
             }
         }
 
-        // Expose restart globally because of onclick attribute
         window.restartQuiz = function() {
             score = 0;
             currentQuestion = 0;
@@ -885,13 +889,10 @@
             const radius = wheelCanvas.width / 2;
             const arc = (2 * Math.PI) / prizes.length;
 
-            // Offset by -90deg AND half an arc. 
             const startOffset = -Math.PI / 2 - (arc / 2);
 
             prizes.forEach((prize, index) => {
                 const angle = index * arc + startOffset;
-                
-                // Draw Wedge
                 wheelCtx.beginPath();
                 wheelCtx.moveTo(centerX, centerY);
                 wheelCtx.arc(centerX, centerY, radius, angle, angle + arc);
@@ -899,21 +900,17 @@
                 wheelCtx.fill();
                 wheelCtx.stroke();
                 
-                // Draw Text
                 wheelCtx.save();
                 wheelCtx.translate(centerX, centerY);
-                // Rotate to center of wedge
                 wheelCtx.rotate(angle + arc / 2);
                 wheelCtx.textAlign = "right";
                 wheelCtx.textBaseline = "middle";
                 wheelCtx.fillStyle = "white";
                 wheelCtx.font = "bold 16px Arial";
-                // Position text inside the wedge
                 wheelCtx.fillText(prize.text, radius - 30, 0);
                 wheelCtx.restore();
             });
 
-            // Draw Central Hub Cap
             wheelCtx.beginPath();
             wheelCtx.arc(centerX, centerY, 30, 0, Math.PI * 2);
             wheelCtx.fillStyle = "white";
@@ -922,7 +919,6 @@
             wheelCtx.strokeStyle = "#e2e8f0";
             wheelCtx.stroke();
             
-            // Draw small center point
             wheelCtx.beginPath();
             wheelCtx.arc(centerX, centerY, 8, 0, Math.PI * 2);
             wheelCtx.fillStyle = "#3b82f6";
@@ -933,7 +929,6 @@
 
         window.openWheel = function() {
             wheelModal.style.display = 'flex';
-            // Reset wheel state
             wheelRotation = 0;
             wheelCanvas.style.transform = `rotate(0deg)`;
             spinBtn.disabled = false;
@@ -955,7 +950,6 @@
             const minSpins = 5;
             const randomDeg = Math.floor(Math.random() * 360);
             
-            // Arc size in degrees
             const arcDeg = 360 / prizes.length;
             const totalDegrees = (360 * minSpins) + randomDeg;
             
@@ -972,7 +966,6 @@
                 
             }, 4000); 
         });
-
     </script>
 </body>
 </html>
