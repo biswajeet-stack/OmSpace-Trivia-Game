@@ -477,10 +477,93 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        /** FIREBASE SETUP **/
+        // Define Globals IMMEDIATELY to prevent button errors
         let app, auth, db, appId, currentUser = null;
         let isOffline = false;
 
+        // CSV EXPORT LOGIC (Defined first to be safe)
+        window.exportToCSV = async function() {
+            // New Password Logic
+            const password = prompt("Enter Admin Password to Download Data:");
+            if (password !== "Omspace@2025") {
+                alert("Access Denied: Incorrect Password.");
+                return;
+            }
+            
+            if (isOffline || !db) {
+                alert("Offline Mode: Cannot fetch cloud data. Ensure internet is connected.");
+                return;
+            }
+
+            try {
+                // Fetch public registrations from the cloud
+                const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'));
+                
+                let csvContent = "data:text/csv;charset=utf-8,";
+                csvContent += "Name,Email,Registration Date\r\n"; // Header
+
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const date = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : "N/A";
+                    // Escape commas
+                    const safeName = `"${(data.name || "").replace(/"/g, '""')}"`;
+                    const safeEmail = `"${(data.email || "").replace(/"/g, '""')}"`;
+                    
+                    csvContent += `${safeName},${safeEmail},${date}\r\n`;
+                });
+
+                // Trigger Download
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "omspace_participants_cloud.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+            } catch (e) {
+                alert("Error downloading data: " + e.message);
+                console.error(e);
+            }
+        };
+
+        // QR Code Function
+        window.showQRCode = function() {
+            const qrModal = document.getElementById('qr-modal');
+            const qrContainer = document.getElementById('qr-image');
+            const currentUrl = window.location.href;
+            
+            // Generate QR Code using a public API
+            qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(currentUrl)}" alt="QR Code" />`;
+            
+            qrModal.style.display = 'flex';
+        };
+
+        window.openWheel = function() {
+            const wheelModal = document.getElementById('wheel-modal');
+            const wheelCanvas = document.getElementById('wheel-canvas');
+            const spinBtn = document.getElementById('spin-btn');
+            const prizeDisplay = document.getElementById('prize-display');
+            
+            wheelModal.style.display = 'flex';
+            // Reset state
+            wheelCanvas.style.transform = `rotate(0deg)`;
+            spinBtn.disabled = false;
+            spinBtn.innerText = "SPIN!";
+            prizeDisplay.innerText = "";
+        };
+
+        window.closeWheel = function() {
+            document.getElementById('wheel-modal').style.display = 'none';
+        };
+
+        window.restartQuiz = function() {
+            // Logic to be called from restart button
+            location.reload(); // Simple reload to restart clean
+        };
+
+
+        /** FIREBASE INIT **/
         try {
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 const firebaseConfig = JSON.parse(__firebase_config);
@@ -537,7 +620,6 @@
             regBtn.disabled = true;
 
             // Save to Firestore Public Data (Shared Cloud List)
-            // This is crucial for multi-user support
             if (!isOffline && currentUser && db) {
                 try {
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), {
@@ -558,66 +640,11 @@
             setTimeout(() => {
                 regCard.style.display = 'none';
                 quizCard.style.display = 'block';
+                
+                // Load quiz function call (defined below)
+                if(typeof loadQuestion === 'function') loadQuestion();
             }, 500);
         });
-
-        // Expose QR Function globally
-        window.showQRCode = function() {
-            const qrModal = document.getElementById('qr-modal');
-            const qrContainer = document.getElementById('qr-image');
-            const currentUrl = window.location.href;
-            
-            // Generate QR Code using a public API
-            qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(currentUrl)}" alt="QR Code" />`;
-            
-            qrModal.style.display = 'flex';
-        };
-
-        // CSV EXPORT LOGIC (Download Cloud Data)
-        window.exportToCSV = async function() {
-            // New Password Logic
-            const password = prompt("Enter Admin Password to Download Data:");
-            if (password !== "Omspace@2025") {
-                alert("Access Denied: Incorrect Password.");
-                return;
-            }
-            
-            if (isOffline || !db) {
-                alert("Offline Mode: Cannot fetch cloud data.");
-                return;
-            }
-
-            try {
-                // Fetch public registrations from the cloud
-                const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'));
-                
-                let csvContent = "data:text/csv;charset=utf-8,";
-                csvContent += "Name,Email,Registration Date\r\n"; // Header
-
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    const date = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : "N/A";
-                    // Escape commas
-                    const safeName = `"${(data.name || "").replace(/"/g, '""')}"`;
-                    const safeEmail = `"${(data.email || "").replace(/"/g, '""')}"`;
-                    
-                    csvContent += `${safeName},${safeEmail},${date}\r\n`;
-                });
-
-                // Trigger Download
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", "omspace_participants_cloud.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-
-            } catch (e) {
-                alert("Error downloading data. Check internet connection.");
-                console.error(e);
-            }
-        };
 
         // QR Code Modal Close on outside click
         window.onclick = function(event) {
@@ -791,7 +818,8 @@
         const scoreMsgEl = document.getElementById('score-message');
         const rewardBtn = document.getElementById('reward-btn');
 
-        function loadQuestion() {
+        // Expose function globally so registration can call it
+        window.loadQuestion = function() {
             answered = false;
             nextBtn.style.display = 'none';
             const q = questions[currentQuestion];
@@ -852,17 +880,9 @@
             }
         }
 
-        window.restartQuiz = function() {
-            score = 0;
-            currentQuestion = 0;
-            resultScreen.style.display = 'none';
-            quizContent.style.display = 'block';
-            loadQuestion();
-        }
-
-        // Initialize Quiz
-        loadQuestion();
-
+        // Initialize Quiz First Question (for background readiness)
+        // loadQuestion(); 
+        // Logic moved to trigger after registration only
 
         /** SPIN THE WHEEL LOGIC **/
         const wheelModal = document.getElementById('wheel-modal');
@@ -926,20 +946,6 @@
         }
 
         drawWheel();
-
-        window.openWheel = function() {
-            wheelModal.style.display = 'flex';
-            wheelRotation = 0;
-            wheelCanvas.style.transform = `rotate(0deg)`;
-            spinBtn.disabled = false;
-            spinBtn.innerText = "SPIN!";
-            prizeDisplay.innerText = "";
-            isSpinning = false;
-        }
-
-        window.closeWheel = function() {
-            wheelModal.style.display = 'none';
-        }
 
         spinBtn.addEventListener('click', () => {
             if (isSpinning) return;
