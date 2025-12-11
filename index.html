@@ -477,32 +477,43 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        /** FIREBASE SETUP **/
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        /** FIREBASE SETUP (Safe Mode) **/
+        let app, auth, db, appId, currentUser = null;
+        let isOffline = false;
 
-        let currentUser = null;
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-        // Auth Listener
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                console.log("User authenticated:", user.uid);
-            }
-        });
+                // Auth Listener
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUser = user;
+                        console.log("User authenticated:", user.uid);
+                    }
+                });
 
-        // Initialize Auth
-        const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
+                // Initialize Auth
+                const initAuth = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                };
+                initAuth();
             } else {
-                await signInAnonymously(auth);
+                console.warn("Firebase config missing. Running in offline/demo mode.");
+                isOffline = true;
             }
-        };
-        initAuth();
+        } catch (e) {
+            console.error("Firebase init failed. Running in offline mode.", e);
+            isOffline = true;
+        }
 
         /** REGISTRATION LOGIC **/
         const regCard = document.getElementById('registration-card');
@@ -526,25 +537,27 @@
             regBtn.disabled = true;
 
             // Save to Firestore Public Data (Shared Sheet Concept)
-            if (currentUser) {
+            if (!isOffline && currentUser && db) {
                 try {
-                    // Changing to PUBLIC path so all users share one list (essential for contest CSV)
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), {
                         name: name,
                         email: email,
                         uid: currentUser.uid,
                         timestamp: serverTimestamp()
                     });
-                    
                     console.log("Participant Registered in Public List:", { name, email });
                 } catch (e) {
                     console.error("Error saving registration:", e);
                 }
+            } else {
+                console.log("Offline/Demo Mode: Registration simulated for", name);
             }
 
-            // Transition UI
-            regCard.style.display = 'none';
-            quizCard.style.display = 'block';
+            // Transition UI (Always happens even if offline)
+            setTimeout(() => {
+                regCard.style.display = 'none';
+                quizCard.style.display = 'block';
+            }, 500);
         });
 
         // Expose QR Function globally
@@ -562,6 +575,11 @@
         // CSV EXPORT LOGIC (Data Store in Sheet)
         window.exportToCSV = async function() {
             if(!confirm("Download participant data as CSV?")) return;
+            
+            if (isOffline || !db) {
+                alert("Offline Mode: No live data to download.");
+                return;
+            }
 
             try {
                 // Fetch public registrations
@@ -603,7 +621,7 @@
             }
         }
 
-        /** CANVAS & PARTICLE SYSTEM (Legacy Code Wrapped) **/
+        /** CANVAS & PARTICLE SYSTEM (VISUALS) **/
         const canvas = document.getElementById('canvas1');
         const ctx = canvas.getContext('2d');
         const particleCountDisplay = document.getElementById('particle-count');
@@ -677,7 +695,7 @@
             particlesArray = [];
             let numberOfParticles = (canvas.height * canvas.width) / 9000;
             numberOfParticles = Math.min(numberOfParticles, 300);
-            particleCountDisplay.innerText = Math.floor(numberOfParticles);
+            if (particleCountDisplay) particleCountDisplay.innerText = Math.floor(numberOfParticles);
 
             for (let i = 0; i < numberOfParticles; i++) {
                 let size = (Math.random() * 3) + 1;
@@ -720,6 +738,7 @@
             connect();
         }
 
+        // Start Particles Immediately
         init();
         animate();
 
