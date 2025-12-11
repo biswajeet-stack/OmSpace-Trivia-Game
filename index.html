@@ -48,6 +48,7 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(4px);
             pointer-events: auto;
+            min-width: 200px;
         }
 
         h1 {
@@ -63,8 +64,8 @@
             opacity: 0.7;
         }
 
-        /* Quiz Card Styles */
-        .quiz-card {
+        /* Shared Card Styles */
+        .glass-card {
             background: rgba(15, 23, 42, 0.75);
             width: 90%;
             max-width: 500px;
@@ -73,9 +74,51 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
             backdrop-filter: blur(12px);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-            pointer-events: auto; /* Re-enable clicks for the quiz */
+            pointer-events: auto;
             text-align: center;
             transition: all 0.3s ease;
+            position: relative; /* For absolute positioning of children if needed */
+        }
+
+        /* Registration Screen Specifics */
+        #registration-card {
+            display: block; /* Shown by default */
+            z-index: 10;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            box-sizing: border-box; /* Ensures padding doesn't affect width */
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: #3b82f6;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Quiz Card Styles (Hidden initially) */
+        #quiz-card {
+            display: none; 
         }
 
         .question-text {
@@ -132,19 +175,23 @@
             padding-top: 15px;
         }
 
-        .next-btn {
+        .next-btn, .start-btn {
             background: #3b82f6;
             color: white;
             border: none;
-            padding: 8px 24px;
+            padding: 10px 24px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            display: none; /* Hidden by default */
+            font-size: 1rem;
         }
         
-        .next-btn:hover {
+        .next-btn:hover, .start-btn:hover {
             background: #2563eb;
+        }
+
+        .next-btn {
+            display: none;
         }
 
         /* Result Screen */
@@ -208,7 +255,7 @@
         }
 
         /* Wheel Modal Overlay */
-        #wheel-modal {
+        #wheel-modal, #qr-modal {
             display: none;
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -235,30 +282,22 @@
         #wheel-canvas {
             border-radius: 50%;
             box-shadow: 0 0 30px rgba(59, 130, 246, 0.4);
-            transition: transform 4s cubic-bezier(0.15, 0.8, 0.12, 0.99); /* Improved easing */
+            transition: transform 4s cubic-bezier(0.15, 0.8, 0.12, 0.99); 
         }
 
-        /* Sharp triangular pointer */
+        /* Precise Triangle Pointer */
         .wheel-pointer {
-            width: 40px;
-            height: 40px;
-            background: white;
+            width: 0; 
+            height: 0; 
+            border-left: 25px solid transparent;
+            border-right: 25px solid transparent;
+            border-top: 50px solid white;
             position: absolute;
-            top: -15px; /* Overlap slightly */
+            top: -20px; 
             left: 50%;
-            transform: translateX(-50%) rotate(45deg); /* Rotate square to make diamond */
+            transform: translateX(-50%);
             z-index: 51;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
-            border-radius: 4px 0 4px 0; /* Soften back corners */
-        }
-        
-        /* Make it look more like a pointer by clipping */
-        .wheel-pointer::after {
-            content: '';
-            position: absolute;
-            width: 100%; height: 100%;
-            background: white;
-            z-index: 52;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
         }
 
         .spin-btn-action {
@@ -308,6 +347,38 @@
             text-decoration: underline;
         }
 
+        /* Admin / Tool Buttons */
+        .tool-bar {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .icon-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 4px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .icon-btn:hover {
+            background: rgba(255,255,255,0.25);
+        }
+        
+        #qr-image {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
     </style>
 </head>
 <body>
@@ -319,10 +390,39 @@
         <div class="info-box">
             <h1>Omspace Galaxy</h1>
             <p>Particles: <span id="particle-count">0</span></p>
+            
+            <div class="tool-bar">
+                <button class="icon-btn" onclick="showQRCode()" title="Share QR Code">
+                    <span>📱</span> QR
+                </button>
+                <button class="icon-btn" onclick="exportToCSV()" title="Download Excel/CSV">
+                    <span>⬇️</span> Data
+                </button>
+            </div>
         </div>
 
-        <!-- Quiz Container -->
-        <div class="quiz-card" id="quiz-card">
+        <!-- Registration Card (First Screen) -->
+        <div class="glass-card" id="registration-card">
+            <div style="margin-bottom: 20px; color: #3b82f6; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;">Cadet Registration</div>
+            
+            <p style="margin-bottom: 25px; color: #cbd5e1;">Enter your details to join the mission and qualify for rewards.</p>
+
+            <div class="input-group">
+                <label for="reg-name">Full Name</label>
+                <input type="text" id="reg-name" class="input-field" placeholder="Major Tom">
+            </div>
+
+            <div class="input-group">
+                <label for="reg-email">Email Address</label>
+                <input type="email" id="reg-email" class="input-field" placeholder="tom@omspace.com">
+            </div>
+
+            <button class="start-btn" id="register-btn" style="width: 100%; margin-top: 10px;">Start Mission</button>
+            <p id="reg-error" style="color: #ef4444; font-size: 0.8rem; margin-top: 10px; display: none;">Please fill in all fields.</p>
+        </div>
+
+        <!-- Quiz Container (Hidden initially) -->
+        <div class="glass-card" id="quiz-card">
             <div id="quiz-content">
                 <div style="margin-bottom: 10px; color: #3b82f6; font-weight: bold; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px;">Omspace Challenge</div>
                 <div class="question-text" id="question">Loading...</div>
@@ -362,8 +462,148 @@
         <button class="modal-close-btn" onclick="closeWheel()">Close</button>
     </div>
 
-    <script>
-        /** CANVAS & PARTICLE SYSTEM **/
+    <!-- QR Code Modal -->
+    <div id="qr-modal">
+        <h2 style="margin-bottom: 20px; color: white;">Scan to Join Mission</h2>
+        <div id="qr-image">
+            <!-- QR code injected here -->
+        </div>
+        <p style="color: #cbd5e1; max-width: 300px; text-align: center;">Scan this code with your mobile device to register and play the quiz.</p>
+        <button class="modal-close-btn" onclick="document.getElementById('qr-modal').style.display = 'none'">Close</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        /** FIREBASE SETUP **/
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        let currentUser = null;
+
+        // Auth Listener
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                console.log("User authenticated:", user.uid);
+            }
+        });
+
+        // Initialize Auth
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+        initAuth();
+
+        /** REGISTRATION LOGIC **/
+        const regCard = document.getElementById('registration-card');
+        const quizCard = document.getElementById('quiz-card');
+        const regName = document.getElementById('reg-name');
+        const regEmail = document.getElementById('reg-email');
+        const regBtn = document.getElementById('register-btn');
+        const regError = document.getElementById('reg-error');
+
+        regBtn.addEventListener('click', async () => {
+            const name = regName.value.trim();
+            const email = regEmail.value.trim();
+
+            if (!name || !email) {
+                regError.style.display = 'block';
+                return;
+            }
+
+            regError.style.display = 'none';
+            regBtn.innerText = "Registering...";
+            regBtn.disabled = true;
+
+            // Save to Firestore Public Data (Shared Sheet Concept)
+            if (currentUser) {
+                try {
+                    // Changing to PUBLIC path so all users share one list (essential for contest CSV)
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), {
+                        name: name,
+                        email: email,
+                        uid: currentUser.uid,
+                        timestamp: serverTimestamp()
+                    });
+                    
+                    console.log("Participant Registered in Public List:", { name, email });
+                } catch (e) {
+                    console.error("Error saving registration:", e);
+                }
+            }
+
+            // Transition UI
+            regCard.style.display = 'none';
+            quizCard.style.display = 'block';
+        });
+
+        // Expose QR Function globally
+        window.showQRCode = function() {
+            const qrModal = document.getElementById('qr-modal');
+            const qrContainer = document.getElementById('qr-image');
+            const currentUrl = window.location.href;
+            
+            // Generate QR Code using a public API
+            qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(currentUrl)}" alt="QR Code" />`;
+            
+            qrModal.style.display = 'flex';
+        };
+
+        // CSV EXPORT LOGIC (Data Store in Sheet)
+        window.exportToCSV = async function() {
+            if(!confirm("Download participant data as CSV?")) return;
+
+            try {
+                // Fetch public registrations
+                const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'));
+                
+                let csvContent = "data:text/csv;charset=utf-8,";
+                csvContent += "Name,Email,Registration Date\r\n"; // Header
+
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const date = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : "N/A";
+                    // Escape commas in names/emails to prevent CSV breakage
+                    const safeName = `"${(data.name || "").replace(/"/g, '""')}"`;
+                    const safeEmail = `"${(data.email || "").replace(/"/g, '""')}"`;
+                    
+                    csvContent += `${safeName},${safeEmail},${date}\r\n`;
+                });
+
+                // Trigger Download
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "omspace_participants.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+            } catch (e) {
+                alert("Error downloading data. Ensure you have permissions or data exists.");
+                console.error(e);
+            }
+        };
+
+        // QR Code Modal Close on outside click
+        window.onclick = function(event) {
+            const qrModal = document.getElementById('qr-modal');
+            if (event.target == qrModal) {
+                qrModal.style.display = 'none';
+            }
+        }
+
+        /** CANVAS & PARTICLE SYSTEM (Legacy Code Wrapped) **/
         const canvas = document.getElementById('canvas1');
         const ctx = canvas.getContext('2d');
         const particleCountDisplay = document.getElementById('particle-count');
@@ -378,7 +618,6 @@
             init();
         });
 
-        // Mouse move on window so it works even over the UI
         window.addEventListener('mousemove', function(event) {
             mouse.x = event.x;
             mouse.y = event.y;
@@ -589,7 +828,8 @@
             }
         }
 
-        function restartQuiz() {
+        // Expose restart globally because of onclick attribute
+        window.restartQuiz = function() {
             score = 0;
             currentQuestion = 0;
             resultScreen.style.display = 'none';
@@ -626,8 +866,8 @@
             const radius = wheelCanvas.width / 2;
             const arc = (2 * Math.PI) / prizes.length;
 
-            // Start drawing from -90deg (top) so Slice 0 is at 12 o'clock
-            const startOffset = -Math.PI / 2;
+            // Offset by -90deg AND half an arc. 
+            const startOffset = -Math.PI / 2 - (arc / 2);
 
             prizes.forEach((prize, index) => {
                 const angle = index * arc + startOffset;
@@ -646,10 +886,11 @@
                 // Rotate to center of wedge
                 wheelCtx.rotate(angle + arc / 2);
                 wheelCtx.textAlign = "right";
+                wheelCtx.textBaseline = "middle";
                 wheelCtx.fillStyle = "white";
                 wheelCtx.font = "bold 16px Arial";
-                // Position text inside the wedge, comfortably away from edge
-                wheelCtx.fillText(prize.text, radius - 30, 5);
+                // Position text inside the wedge
+                wheelCtx.fillText(prize.text, radius - 30, 0);
                 wheelCtx.restore();
             });
 
@@ -671,7 +912,7 @@
 
         drawWheel();
 
-        function openWheel() {
+        window.openWheel = function() {
             wheelModal.style.display = 'flex';
             // Reset wheel state
             wheelRotation = 0;
@@ -682,7 +923,7 @@
             isSpinning = false;
         }
 
-        function closeWheel() {
+        window.closeWheel = function() {
             wheelModal.style.display = 'none';
         }
 
@@ -692,37 +933,25 @@
             spinBtn.disabled = true;
             spinBtn.innerText = "Spinning...";
 
-            // Calculate random spin (Clockwise)
             const minSpins = 5;
-            const maxSpins = 8;
             const randomDeg = Math.floor(Math.random() * 360);
+            
+            // Arc size in degrees
+            const arcDeg = 360 / prizes.length;
             const totalDegrees = (360 * minSpins) + randomDeg;
             
             wheelRotation = totalDegrees;
-            // Apply Clockwise rotation in CSS
             wheelCanvas.style.transform = `rotate(${wheelRotation}deg)`;
 
             setTimeout(() => {
                 isSpinning = false;
                 spinBtn.innerText = "CLAIMED";
                 
-                // Normalize rotation to 0-360
-                const actualRotation = wheelRotation % 360;
-                const arcSizeDegrees = 360 / prizes.length;
-                
-                // Calculate Winner:
-                // Pointer is fixed at TOP (0 deg visual, or -90 deg math).
-                // Wheel rotated Clockwise by 'actualRotation'.
-                // Effectively, the pointer moved Counter-Clockwise relative to the wheel by 'actualRotation'.
-                // Since our slices start at 0 (Top) and go Clockwise (Index 1 is at 30 deg, etc.)
-                // The pointer is now pointing at "360 - actualRotation".
-                
-                const virtualPointerAngle = (360 - actualRotation) % 360;
-                const winningIndex = Math.floor(virtualPointerAngle / arcSizeDegrees);
+                const winningIndex = (Math.round(-wheelRotation / arcDeg) % prizes.length + prizes.length) % prizes.length;
 
                 prizeDisplay.innerText = "You won: " + prizes[winningIndex].text + "!";
                 
-            }, 4000); // Match CSS transition time
+            }, 4000); 
         });
 
     </script>
