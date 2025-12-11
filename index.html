@@ -254,8 +254,8 @@
             100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
         }
 
-        /* Wheel Modal Overlay */
-        #wheel-modal, #qr-modal {
+        /* Modals (Wheel, QR, Password) */
+        #wheel-modal, #qr-modal, #password-modal {
             display: none;
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -266,6 +266,11 @@
             flex-direction: column;
             backdrop-filter: blur(8px);
             pointer-events: auto;
+        }
+        
+        /* Password Modal Specifics */
+        #password-modal .glass-card {
+            max-width: 400px;
         }
 
         /* Wheel Container for perfect alignment */
@@ -378,6 +383,14 @@
             border-radius: 10px;
             margin-bottom: 20px;
         }
+        
+        /* Status Message */
+        #status-msg {
+            color: #ef4444;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            min-height: 20px;
+        }
 
     </style>
 </head>
@@ -395,7 +408,7 @@
                 <button class="icon-btn" onclick="showQRCode()" title="Share QR Code">
                     <span>📱</span> QR
                 </button>
-                <button class="icon-btn" onclick="exportToCSV()" title="Download All Data">
+                <button class="icon-btn" onclick="openPasswordModal()" title="Download All Data">
                     <span>⬇️</span> Data
                 </button>
             </div>
@@ -472,33 +485,69 @@
         <button class="modal-close-btn" onclick="document.getElementById('qr-modal').style.display = 'none'">Close</button>
     </div>
 
+    <!-- Password Modal -->
+    <div id="password-modal">
+        <div class="glass-card">
+            <h2 style="margin-bottom: 20px; color: white;">Admin Access</h2>
+            <div class="input-group">
+                <label for="admin-pass">Enter Admin Password</label>
+                <input type="password" id="admin-pass" class="input-field" placeholder="******">
+            </div>
+            <div id="status-msg"></div>
+            <button class="start-btn" onclick="verifyAndDownload()" style="width: 100%;">Download Data</button>
+            <button class="modal-close-btn" onclick="closePasswordModal()">Cancel</button>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Define Globals IMMEDIATELY to prevent button errors
+        // Define Globals IMMEDIATELY
         let app, auth, db, appId, currentUser = null;
         let isOffline = false;
 
-        // CSV EXPORT LOGIC (Defined first to be safe)
-        window.exportToCSV = async function() {
-            // New Password Logic
-            const password = prompt("Enter Admin Password to Download Data:");
+        // ---- EXPORT LOGIC (NO PROMPTS/ALERTS) ----
+        window.openPasswordModal = function() {
+            document.getElementById('password-modal').style.display = 'flex';
+            document.getElementById('admin-pass').value = '';
+            document.getElementById('status-msg').innerText = '';
+        };
+
+        window.closePasswordModal = function() {
+            document.getElementById('password-modal').style.display = 'none';
+        };
+
+        window.verifyAndDownload = async function() {
+            const passInput = document.getElementById('admin-pass');
+            const statusMsg = document.getElementById('status-msg');
+            const password = passInput.value;
+
             if (password !== "Omspace@2025") {
-                alert("Access Denied: Incorrect Password.");
+                statusMsg.style.color = "#ef4444"; // Red
+                statusMsg.innerText = "Access Denied: Incorrect Password.";
                 return;
             }
             
             if (isOffline || !db) {
-                alert("Offline Mode: Cannot fetch cloud data. Ensure internet is connected.");
+                statusMsg.style.color = "#f59e0b"; // Orange
+                statusMsg.innerText = "Offline Mode: Cannot connect to cloud.";
                 return;
             }
+
+            statusMsg.style.color = "#3b82f6"; // Blue
+            statusMsg.innerText = "Fetching data...";
 
             try {
                 // Fetch public registrations from the cloud
                 const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'));
                 
+                if (querySnapshot.empty) {
+                    statusMsg.innerText = "No data found in database.";
+                    return;
+                }
+
                 let csvContent = "data:text/csv;charset=utf-8,";
                 csvContent += "Name,Email,Registration Date\r\n"; // Header
 
@@ -521,8 +570,14 @@
                 link.click();
                 document.body.removeChild(link);
 
+                statusMsg.style.color = "#10b981"; // Green
+                statusMsg.innerText = "Download Started!";
+                
+                setTimeout(() => window.closePasswordModal(), 2000);
+
             } catch (e) {
-                alert("Error downloading data: " + e.message);
+                statusMsg.style.color = "#ef4444";
+                statusMsg.innerText = "Error: " + e.message;
                 console.error(e);
             }
         };
@@ -649,9 +704,12 @@
         // QR Code Modal Close on outside click
         window.onclick = function(event) {
             const qrModal = document.getElementById('qr-modal');
-            if (event.target == qrModal) {
-                qrModal.style.display = 'none';
-            }
+            const passModal = document.getElementById('password-modal');
+            const wheelModal = document.getElementById('wheel-modal');
+            
+            if (event.target == qrModal) qrModal.style.display = 'none';
+            if (event.target == passModal) passModal.style.display = 'none';
+            // Wheel usually requires explicit close to see result, so we leave it open
         }
 
         /** CANVAS & PARTICLE SYSTEM (VISUALS) **/
@@ -879,10 +937,6 @@
                 rewardBtn.style.display = 'none';
             }
         }
-
-        // Initialize Quiz First Question (for background readiness)
-        // loadQuestion(); 
-        // Logic moved to trigger after registration only
 
         /** SPIN THE WHEEL LOGIC **/
         const wheelModal = document.getElementById('wheel-modal');
