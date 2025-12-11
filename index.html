@@ -619,13 +619,35 @@
 
 
         /** FIREBASE INIT **/
+        // =========================================================================
+        // MANUAL CONFIGURATION (From User)
+        // =========================================================================
+        const manualConfig = {
+            apiKey: "AIzaSyBgcdTnJ7zGayJ2l8Y97NrtGE6Y-VArddM",
+            authDomain: "omspacetriviastorage.firebaseapp.com",
+            projectId: "omspacetriviastorage",
+            storageBucket: "omspacetriviastorage.firebasestorage.app",
+            messagingSenderId: "881533987482",
+            appId: "1:881533987482:web:fb59075a57b72132514d23",
+            measurementId: "G-D3X5X9F4BY"
+        };
+
         try {
+            let firebaseConfig;
+            
+            // Priority: Environment Variable -> Manual Config
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                const firebaseConfig = JSON.parse(__firebase_config);
+                firebaseConfig = JSON.parse(__firebase_config);
+            } else {
+                firebaseConfig = manualConfig;
+            }
+
+            if (firebaseConfig && firebaseConfig.apiKey !== "PASTE_YOUR_API_KEY_HERE") {
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
-                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                // Use the projectId as a stable identifier for the app container if possible, or fallback
+                appId = firebaseConfig.projectId || (typeof __app_id !== 'undefined' ? __app_id : 'omspace-trivia-app');
 
                 // Auth Listener
                 onAuthStateChanged(auth, (user) => {
