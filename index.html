@@ -519,11 +519,11 @@
     </div>
 
     <script type="module">
-        // Import specific versions (12.6.0) as requested
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
+        // Import specific versions (11.0.2) as requested
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-analytics.js";
 
         // Define Globals IMMEDIATELY
         let app, auth, db, appId, currentUser = null;
@@ -736,24 +736,43 @@
                     });
                     console.log("Participant Registered in Cloud:", { name, email });
                     regBtn.innerText = "Saved!"; // Success feedback
+                    
+                    // Proceed to game after successful save
+                    setTimeout(() => {
+                         regBtn.innerText = "Start Mission";
+                         regCard.style.display = 'none';
+                         quizCard.style.display = 'block';
+                         if(typeof loadQuestion === 'function') loadQuestion();
+                    }, 1000);
+                    
                 } catch (e) {
                     console.error("Error saving registration:", e);
-                    regBtn.innerText = "Error (Check Console)"; // Error feedback
-                    // Proceed anyway so user can play
+                    regBtn.disabled = false; // Re-enable so they can try again
+                    
+                    if (e.code === 'permission-denied') {
+                        regBtn.innerText = "Error: Permission Denied";
+                        alert("Error: Database Permission Denied.\n\nPlease go to Firebase Console > Firestore Database > Rules and ensure you have published the rules to allow read/write.");
+                    } else if (e.code === 'unavailable') {
+                        regBtn.innerText = "Error: Network";
+                        alert("Error: Network Unavailable.\n\nPlease check your internet connection.");
+                    } else {
+                        regBtn.innerText = "Error";
+                        alert("Error saving data: " + e.message);
+                    }
                 }
             } else {
+                // Offline Mode Handling
                 console.log("Offline Mode: Data not saved to cloud.");
-                regBtn.innerText = "Offline Mode";
-            }
-
-            // Transition UI
-            setTimeout(() => {
-                regCard.style.display = 'none';
-                quizCard.style.display = 'block';
+                regBtn.innerText = "Offline Mode - Not Saved";
+                alert("App is in Offline Mode. Data will NOT be saved to the cloud for download later.\n\nCheck your Firebase Configuration keys.");
                 
-                // Load quiz function call (defined below)
-                if(typeof loadQuestion === 'function') loadQuestion();
-            }, 800);
+                // Allow proceed for demo purposes only
+                setTimeout(() => {
+                    regCard.style.display = 'none';
+                    quizCard.style.display = 'block';
+                    if(typeof loadQuestion === 'function') loadQuestion();
+                }, 1000);
+            }
         });
 
         // QR Code Modal Close on outside click
